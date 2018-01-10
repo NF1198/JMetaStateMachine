@@ -70,11 +70,11 @@ public final class MetaStateMachineBuilder<StateT extends Enum, EventT extends E
      * Build a state machine
      * @return 
      */
-    public MetaStateMachine build() {
+    public MetaStateMachine<StateT, EventT, DataT> build() {
         return this.build(() -> new MetaStateMachine<>());
     }
 
-    public MetaStateMachine build(Supplier<? extends MetaStateMachine<StateT, EventT, DataT>> msmSupplier) {
+    public MetaStateMachine<StateT, EventT, DataT> build(Supplier<? extends MetaStateMachine<StateT, EventT, DataT>> msmSupplier) {
         MetaStateMachine<StateT, EventT, DataT> msm = msmSupplier.get();
         msm.redefine(this.defs);
         return msm;
