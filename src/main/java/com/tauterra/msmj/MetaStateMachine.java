@@ -110,7 +110,9 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
                 }
                 return this.state;
             }
+            boolean continuation = false;
             for (MSMDef<StateT, EventT, DataT> def : defs) {
+                continuation = false;
                 if (def.getGuard() != null) {
                     boolean guardResult = def.getGuard().check(this.state, event, def.getToState(), this.data);
                     if (!guardResult) {
@@ -121,6 +123,9 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
                 try {
                     if (def.getAction() != null) {
                         event = def.getAction().apply(this.state, event, def.getToState(), this.data);
+                        if (event != null) {
+                            continuation = true;
+                        }
                     }
                 } catch (Exception e) {
                     throw (e);
@@ -134,6 +139,9 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
                 }
                 // break loop if guard passed
                 break;
+            }
+            if (!continuation) {
+                event = null;
             }
         }
         return this.state;
