@@ -127,7 +127,7 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
                 } finally {
                     final StateT newState = def.getToState();
                     this.state = def.getToState();
-                    if (this.stateTransitionEventHandlers != null) {
+                    if (!oldState.equals(newState) && this.stateTransitionEventHandlers != null) {
                         final StateTransitionEvent<StateT, EventT, DataT> ste = new StateTransitionEvent<>(oldState, transitionEvent, newState, this.data);
                         this.stateTransitionEventHandlers.forEach(h -> h.accept(ste));
                     }
