@@ -17,8 +17,10 @@ package com.tauterra.msmj;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -38,7 +40,7 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
     private StateT state;
 
     // state transition table
-    private final Map<Long, MSMDef<StateT, EventT, DataT>> stt = new HashMap<>();
+    private final Map<Long, Set<MSMDef<StateT, EventT, DataT>>> stt = new HashMap<>();
 
     private BiConsumer<StateT, EventT> unhandledEventHandler = null;
 
@@ -51,10 +53,13 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
         stt.clear();
         defs.forEach(d -> {
             final Long key = computeStateTransitionKey(d.getFromState(), d.getEvent());
-            stt.put(key, d);
+            if (!stt.containsKey(key)) {
+                stt.put(key, new LinkedHashSet<>());
+            }
+            stt.get(key).add(d);
         });
     }
-    
+
     public void reset(StateT state) {
         this.state = state;
     }
@@ -98,32 +103,37 @@ public class MetaStateMachine<StateT extends Enum, EventT extends Enum, DataT> {
             final StateT oldState = this.state;
             final EventT transitionEvent = event;
             final Long key = computeStateTransitionKey(this.state, event);
-            final MSMDef<StateT, EventT, DataT> def = this.stt.get(key);
-            if (def == null) {
+            final Set<MSMDef<StateT, EventT, DataT>> defs = this.stt.get(key);
+            if (defs == null) {
                 if (this.unhandledEventHandler != null) {
                     this.unhandledEventHandler.accept(this.state, event);
                 }
                 return this.state;
             }
-            if (def.getGuard() != null) {
-                boolean guardResult = def.getGuard().check(this.state, event, def.getToState(), this.data);
-                if (!guardResult) {
-                    return this.state;
+            for (MSMDef<StateT, EventT, DataT> def : defs) {
+                if (def.getGuard() != null) {
+                    boolean guardResult = def.getGuard().check(this.state, event, def.getToState(), this.data);
+                    if (!guardResult) {
+                        // only continue if guard doesn't match
+                        continue;
+                    }
                 }
-            }
-            try {
-                if (def.getAction() != null) {
-                    event = def.getAction().apply(this.state, event, def.getToState(), this.data);
+                try {
+                    if (def.getAction() != null) {
+                        event = def.getAction().apply(this.state, event, def.getToState(), this.data);
+                    }
+                } catch (Exception e) {
+                    throw (e);
+                } finally {
+                    final StateT newState = def.getToState();
+                    this.state = def.getToState();
+                    if (this.stateTransitionEventHandlers != null) {
+                        final StateTransitionEvent<StateT, EventT, DataT> ste = new StateTransitionEvent<>(oldState, transitionEvent, newState, this.data);
+                        this.stateTransitionEventHandlers.forEach(h -> h.accept(ste));
+                    }
                 }
-            } catch (Exception e) {
-                throw (e);
-            } finally {
-                final StateT newState = def.getToState();
-                this.state = def.getToState();
-                if (this.stateTransitionEventHandlers != null) {
-                    final StateTransitionEvent<StateT, EventT, DataT> ste = new StateTransitionEvent<>(oldState, transitionEvent, newState, this.data);
-                    this.stateTransitionEventHandlers.forEach(h -> h.accept(ste));
-                }
+                // break loop if guard passed
+                break;
             }
         }
         return this.state;
